@@ -141,7 +141,7 @@ Therefore, we recommend using Supervisord for proper process daemonization.
 
 example conf:
 ```bash
-$ cat /etc//etc/supervisor/conf.d/hyperliquid-discord-monitor.conf
+$ cat /etc/supervisor/conf.d/hyperliquid-discord-monitor.conf
 [program:hyperliquid-discord-monitor]
 command=python3 hyperliquid-discord-monitor.py addresses
 user=darkstar
