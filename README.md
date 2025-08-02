@@ -134,3 +134,30 @@ The addresses file should contain one Ethereum address per line:
 ```
 
 Empty lines are ignored, so you can add spacing for better readability.
+
+### Recommendation for Daemonization
+If you daemonize the process directly, it may go into a sleep state.
+Therefore, we recommend using Supervisord for proper process daemonization.
+
+example conf:
+```bash
+$ cat /etc/supervisor/conf.d/hyperliquid-discord-monitor.conf
+[program:hyperliquid-discord-monitor]
+command=python3 hyperliquid-discord-monitor.py addresses
+user=darkstar
+directory=/home/$USER/git/hyperliquid-discord-monitor
+autostart=true
+autorestart=true
+stderr_logfile=/var/log/h-monitor.log
+stderr_logfile_maxbytes=1MB
+stdout_logfile=/var/log/h-monitor.out.log
+stdout_logfile_maxbytes=1MB
+stdout_logfile_backups=0
+stderr_logfile_backups=0
+environment=PATH="/home/$USER/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/home/$USER/.$USER/bin:/home/$USER/.cargo/bin:/home/$USER/.npm-global/bin",PYTHONPATH="/home/$USER/.local/lib/python3.11/site-packages",HOME="/home/$USER"
+```
+```bash
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl start hyperliquid-discord-monitor
+```
