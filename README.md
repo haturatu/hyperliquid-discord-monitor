@@ -52,29 +52,6 @@ Or with a custom addresses file:
 python hyperliquid-discord-monitor.py custom_addresses.txt -d
 ```
 
-### Daemon Management Commands
-When running in daemon mode, use these commands to manage the process:
-
-Check if daemon is running:
-```bash
-ps aux | grep hyperliquid-discord-monitor.py
-```
-
-Stop the daemon:
-```bash
-kill $(cat /tmp/hyperliquid_monitor.pid)
-```
-
-View logs:
-```bash
-tail -f /tmp/hyperliquid_monitor.log
-```
-
-View error logs:
-```bash
-tail -f /tmp/hyperliquid_monitor_error.log
-```
-
 ## Example
 
 ### Setup Example
