@@ -188,7 +188,7 @@ def check_recent_similar_trade_in_db(db_path: str, trade: Trade, window_minutes:
         query = """
         SELECT COUNT(*) FROM fills
         WHERE coin = ? 
-          AND trade_type = ?
+          AND direction = ?
           AND timestamp >= ?
           AND tx_hash != ?
         """
