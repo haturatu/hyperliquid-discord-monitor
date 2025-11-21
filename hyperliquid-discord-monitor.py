@@ -9,7 +9,7 @@ import asyncio
 import threading
 from hyperliquid_monitor.monitor import HyperliquidMonitor
 from hyperliquid_monitor.types import Trade
-from datetime import datetime, timedelta
+from datetime import datetime
 from collections import defaultdict
 import requests
 import json
@@ -76,13 +76,6 @@ def process_trade_with_db(webhook_url: str, trade: Trade, db_path: str):
     
     if os.path.exists(db_path) and check_trade_exists_in_db(db_path, trade.tx_hash):
         print(f"[{address_suffix}] Trade {trade.tx_hash} already exists in DB, skipping notification")
-        processed_trades.add(trade_key)
-        return
-
-    # 直近の類似取引をチェックして通知を抑制
-    suppression_window = int(os.getenv('NOTIFICATION_SUPPRESSION_WINDOW_MINUTES', '10'))
-    if check_recent_similar_trade_in_db(db_path, trade, suppression_window):
-        print(f"[{address_suffix}] Similar trade for {trade.coin} ({trade.trade_type}) found recently, suppressing notification for {trade.tx_hash}")
         processed_trades.add(trade_key)
         return
 
@@ -158,52 +151,6 @@ def check_trade_exists_in_db(db_path: str, tx_hash: str) -> bool:
         return False
     except Exception as e:
         print(f"Error checking trade in DB: {e}")
-        return False
-
-def check_recent_similar_trade_in_db(db_path: str, trade: Trade, window_minutes: int) -> bool:
-    """
-    直近指定分以内に同じ通貨で同じ方向の取引（Open Short/Long）が存在するかチェック
-    """
-    if trade.trade_type not in ["Open Short", "Open Long"]:
-        return False
-
-    import sqlite3
-    from datetime import datetime, timedelta
-
-    try:
-        if not os.path.exists(db_path):
-            return False
-
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='fills'")
-        if not cursor.fetchone():
-            conn.close()
-            return False
-
-        cutoff_time = datetime.utcnow() - timedelta(minutes=window_minutes)
-        cutoff_time_str = cutoff_time.strftime('%Y-%m-%d %H:%M:%S')
-
-        query = """
-        SELECT COUNT(*) FROM fills
-        WHERE coin = ? 
-          AND trade_type = ?
-          AND timestamp >= ?
-          AND tx_hash != ?
-        """
-        
-        cursor.execute(query, (trade.coin, trade.trade_type, cutoff_time_str, trade.tx_hash))
-        count = cursor.fetchone()[0]
-        
-        conn.close()
-        return count > 0
-
-    except sqlite3.Error as e:
-        print(f"SQLite error checking recent similar trade: {e}")
-        return False
-    except Exception as e:
-        print(f"Error checking recent similar trade: {e}")
         return False
 
 def load_addresses(file_path: str) -> list:
