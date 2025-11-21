@@ -164,7 +164,7 @@ def check_recent_similar_trade_in_db(db_path: str, trade: Trade, window_minutes:
     """
     直近指定分以内に同じ通貨で同じ方向の取引（Open Short/Long）が存在するかチェック
     """
-    if trade.direction not in ["Open Short", "Open Long"]:
+    if trade.trade_type not in ["Open Short", "Open Long"]:
         return False
 
     import sqlite3
@@ -193,7 +193,7 @@ def check_recent_similar_trade_in_db(db_path: str, trade: Trade, window_minutes:
           AND tx_hash != ?
         """
         
-        cursor.execute(query, (trade.coin, trade.direction, cutoff_time_str, trade.tx_hash))
+        cursor.execute(query, (trade.coin, trade.trade_type, cutoff_time_str, trade.tx_hash))
         count = cursor.fetchone()[0]
         
         conn.close()
