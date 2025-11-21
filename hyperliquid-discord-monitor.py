@@ -16,6 +16,11 @@ import json
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# .envから抑制時間を読み込み、デフォルトは60秒
+NOTIFICATION_SUPPRESSION_SECONDS = int(os.getenv('NOTIFICATION_SUPPRESSION_SECONDS', 60))
+last_notification_time = defaultdict(float)
+
 trade_cache = defaultdict(list)
 monitor_instances = {}
 main_loop = None
@@ -55,7 +60,7 @@ def send_to_discord(webhook_url: str, message: str):
 
 def process_trade_with_db(webhook_url: str, trade: Trade, db_path: str):
     """DBパスを指定してトレードを処理"""
-    global trade_cache, processed_trades, startup_grace_period
+    global trade_cache, processed_trades, startup_grace_period, last_notification_time
 
     address_suffix = trade.address[-8:]
     trade_key = f"{trade.address}:{trade.tx_hash}"
@@ -76,6 +81,15 @@ def process_trade_with_db(webhook_url: str, trade: Trade, db_path: str):
     
     if os.path.exists(db_path) and check_trade_exists_in_db(db_path, trade.tx_hash):
         print(f"[{address_suffix}] Trade {trade.tx_hash} already exists in DB, skipping notification")
+        processed_trades.add(trade_key)
+        return
+
+    # 通知抑制ロジック
+    suppression_key = (trade.address, trade.coin, trade.direction)
+    last_time = last_notification_time.get(suppression_key)
+
+    if last_time and (current_time - last_time) < NOTIFICATION_SUPPRESSION_SECONDS:
+        print(f"[{address_suffix}] Notification for {trade.coin} {trade.direction} suppressed. Last notification was at {datetime.fromtimestamp(last_time).strftime('%Y-%m-%d %H:%M:%S')}")
         processed_trades.add(trade_key)
         return
 
@@ -109,6 +123,8 @@ Price: {trade.price}"""
         if discord_msg:
             print(f"[{address_suffix}] Sending Discord notification for new trade: {trade.tx_hash}")
             send_to_discord(webhook_url, discord_msg)
+            # 通知を送信したら、時刻を更新
+            last_notification_time[suppression_key] = current_time
 
 def check_trade_exists_in_db(db_path: str, tx_hash: str) -> bool:
     """DBに指定されたtx_hashのトレードが既に存在するかチェック"""
