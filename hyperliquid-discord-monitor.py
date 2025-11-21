@@ -131,7 +131,7 @@ def check_trade_exists_in_db(db_path: str, tx_hash: str) -> bool:
         # テーブルの存在確認
         cursor.execute("""
             SELECT name FROM sqlite_master 
-            WHERE type='table' AND name='fills'
+            WHERE type='table' AND name='trades'
         """)
         
         if not cursor.fetchone():
@@ -139,15 +139,15 @@ def check_trade_exists_in_db(db_path: str, tx_hash: str) -> bool:
             return False  # ログ出力を削除（起動時の大量出力を防ぐ）
         
         # tx_hash列の存在確認
-        cursor.execute("PRAGMA table_info(fills)")
+        cursor.execute("PRAGMA table_info(trades)")
         columns = [column[1] for column in cursor.fetchall()]
         
         if 'tx_hash' not in columns:
             conn.close()
             return False
         
-        # fillsテーブルでtx_hashをチェック
-        cursor.execute("SELECT COUNT(*) FROM fills WHERE tx_hash = ?", (tx_hash,))
+        # tradesテーブルでtx_hashをチェック
+        cursor.execute("SELECT COUNT(*) FROM trades WHERE tx_hash = ?", (tx_hash,))
         count = cursor.fetchone()[0]
         
         conn.close()
