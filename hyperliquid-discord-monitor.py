@@ -17,8 +17,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# .envから抑制時間を読み込み、デフォルトは60秒
+# .envから各種設定を読み込む
 NOTIFICATION_SUPPRESSION_SECONDS = int(os.getenv('NOTIFICATION_SUPPRESSION_SECONDS', 60))
+DB_DIRECTORY = os.getenv('DB_DIRECTORY', '.') # デフォルトはカレントディレクトリ
+
+# DB保存ディレクトリが存在しない場合は作成
+if DB_DIRECTORY != '.':
+    os.makedirs(DB_DIRECTORY, exist_ok=True)
+    print(f"Database directory set to: {DB_DIRECTORY}")
+
 last_notification_time = defaultdict(float)
 
 trade_cache = defaultdict(list)
@@ -210,7 +217,8 @@ async def monitor_address_async(webhook_url: str, address: str, address_index: i
     reconnect_interval = 3600  # 1時間ごとに再接続
     last_reconnect_time = time.time()
     
-    db_path = f"trades_{address[-8:]}.db"
+    # DBパスを環境変数で指定されたディレクトリ内に作成
+    db_path = os.path.join(DB_DIRECTORY, f"trades_{address[-8:]}.db")
     
     def create_callback(addr, db_file):
         def callback(trade):
