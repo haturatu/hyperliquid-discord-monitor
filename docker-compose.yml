@@ -1,0 +1,11 @@
+services:
+  hyperliquid-monitor:
+    build: .
+    restart: always
+    env_file:
+      - ./.env
+    volumes:
+      # - ./data:/app/data # If you want to persist data outside the container
+      - ./addresses.txt:/app/addresses.txt # If you want to manage addresses.txt outside the container
+    mem_limit: 512m
+    cpus: 0.5
