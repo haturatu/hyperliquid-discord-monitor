@@ -1,3 +1,5 @@
 addresses
 .env
 trades*.db
+data
+addresses.txt
