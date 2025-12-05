@@ -28,6 +28,75 @@ DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/your/webhook/url
 touch addresses
 ```
 
+## Dockerでの実行 (推奨)
+
+Dockerを使用すると、依存関係やプロセスの管理が自動化されるため、この方法を推奨します。
+
+### 1. 前提条件
+
+- [Docker](https://docs.docker.com/get-docker/)
+- [Docker Compose](https://docs.docker.com/compose/install/)
+
+### 2. 設定
+
+プロジェクトのルートディレクトリで、以下の3つの準備が必要です。
+
+#### a) `addresses.txt` ファイル
+
+監視対象のHyperliquidアドレスを1行に1つずつ記述します。
+
+**`addresses.txt`の例:**
+```
+0x1234567890abcdef1234567890abcdef12345678
+0xabcdef1234567890abcdef1234567890abcdef12
+```
+
+#### b) `data` ディレクトリ
+
+取引履歴のデータベース (SQLiteファイル) を永続的に保存するために使用します。コンテナを再起動してもデータが失われるのを防ぎます。
+
+以下のコマンドで作成してください:
+```bash
+mkdir data
+```
+
+#### c) `.env` ファイル
+
+アプリケーションに必要な環境変数を記述します。
+
+- `DISCORD_WEBHOOK_URL`: **(必須)** あなたのDiscord Webhook URL。
+- `DB_DIRECTORY`: **(Dockerで必須)** データベースを永続ボリュームに保存するため、`/app/data`に設定してください。
+- `NOTIFICATION_SUPPRESSION_SECONDS`: (任意) 同じ種類の取引に対する通知間のクールダウン時間（秒）。デフォルトは`60`です。
+
+**`.env`の例:**
+```
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/your_webhook_id/your_webhook_token
+NOTIFICATION_SUPPRESSION_SECONDS=300
+DB_DIRECTORY=/app/data
+```
+
+### 3. サービスの実行
+
+設定が完了したら、以下のコマンドでサービスを管理します。
+
+- **バックグラウンドでサービスを開始:**
+  ```bash
+  docker-compose up -d
+  ```
+
+- **リアルタイムでログを表示:**
+  ```bash
+  docker-compose logs -f
+  ```
+  *(`Ctrl+C`でログ表示を終了しても、サービスは実行され続けます。)*
+
+- **サービスを停止:**
+  ```bash
+  docker-compose down
+  ```
+
+---
+
 ## Usage
 
 ### Basic Usage
