@@ -10,3 +10,8 @@ services:
       - ./addresses.txt:/app/addresses.txt # If you want to manage addresses.txt outside the container
     mem_limit: 512m
     cpus: 0.5
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f hyperliquid-discord-monitor.py > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
