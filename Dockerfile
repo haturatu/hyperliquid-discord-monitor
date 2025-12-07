@@ -10,5 +10,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY hyperliquid-discord-monitor.py .
 COPY addresses.txt .
+COPY .env .
 
 CMD ["python", "hyperliquid-discord-monitor.py", "addresses.txt"]
