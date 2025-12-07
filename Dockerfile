@@ -8,6 +8,10 @@ RUN pip install --upgrade pip && \
 
 RUN pip install --no-cache-dir -r requirements.txt
 
+RUN getent group nobody || groupadd nobody
+RUN chown -R nobody:nobody /app
+USER nobody
+
 COPY hyperliquid-discord-monitor.py .
 COPY addresses.txt .
 COPY .env .
