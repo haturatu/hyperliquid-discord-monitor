@@ -20,7 +20,7 @@ load_dotenv()
 # .envから各種設定を読み込む
 NOTIFICATION_SUPPRESSION_SECONDS = int(os.getenv('NOTIFICATION_SUPPRESSION_SECONDS', 60))
 DB_DIRECTORY = os.getenv('DB_DIRECTORY', '.') # デフォルトはカレントディレクトリ
-HEALTHCHECK_FILE = os.getenv('HEALTHCHECK_FILE', '/tmp/healthcheck.txt')
+HEALTHCHECK_FILE = os.getenv('HEALTHCHECK_FILE', 'healthcheck.txt')
 
 # DB保存ディレクトリが存在しない場合は作成
 if DB_DIRECTORY != '.':
@@ -264,19 +264,14 @@ async def monitor_address_async(webhook_url: str, address: str, address_index: i
                             break
                     print(f"[{address_index}] Patched ping thread for {address} terminated.")
 
-                # Find the websocket manager and apply the patch
-                ws_manager = None
-                if hasattr(monitor, 'ws_manager'):
-                    ws_manager = monitor.ws_manager
-                elif hasattr(monitor, 'websocket_manager'):
-                    ws_manager = monitor.websocket_manager
-
-                if ws_manager and hasattr(ws_manager, 'send_ping'):
+                # The websocket manager is at monitor.info.ws_manager
+                if hasattr(monitor, 'info') and hasattr(monitor.info, 'ws_manager') and hasattr(monitor.info.ws_manager, 'send_ping'):
+                    ws_manager = monitor.info.ws_manager
                     # Bind the patched function to the instance
                     ws_manager.send_ping = patched_send_ping.__get__(ws_manager)
                     print(f"[{address_index}] Successfully patched 'send_ping' method.")
                 else:
-                    sys.stderr.write(f"[{address_index}] WARNING: Could not find websocket manager or 'send_ping' method to patch.\n")
+                    sys.stderr.write(f"[{address_index}] WARNING: Could not find 'monitor.info.ws_manager.send_ping' method to patch.\n")
             except Exception as e:
                 sys.stderr.write(f"[{address_index}] WARNING: An error occurred while applying the ping thread patch: {e}\n")
             # --- End of patch ---
