@@ -12,6 +12,6 @@ services:
     cpus: 0.5
     healthcheck:
       test: ["CMD-SHELL", "find /tmp/healthcheck.txt -mtime -5 | grep . || exit 1"]
-      interval: 10h
+      interval: 10m
       timeout: 10s
       retries: 5
