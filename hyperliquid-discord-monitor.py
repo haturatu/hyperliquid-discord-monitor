@@ -260,7 +260,9 @@ async def monitor_address_async(webhook_url: str, address: str, address_index: i
                             ws_manager_instance.ws.send(json.dumps({"method": "ping"}))
                             time.sleep(5)
                         except Exception as e:
-                            print(f"[{address_index}] Error in patched ping thread for {address}: {e}. Exiting.")
+                            print(f"[{address_index}] Error in patched ping thread for {address}: {e}. Stopping monitor to trigger reconnect.")
+                            if monitor:
+                                monitor.stop()
                             break
                     print(f"[{address_index}] Patched ping thread for {address} terminated.")
 
