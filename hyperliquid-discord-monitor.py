@@ -20,7 +20,7 @@ load_dotenv()
 # .envから各種設定を読み込む
 NOTIFICATION_SUPPRESSION_SECONDS = int(os.getenv('NOTIFICATION_SUPPRESSION_SECONDS', 60))
 DB_DIRECTORY = os.getenv('DB_DIRECTORY', '.') # デフォルトはカレントディレクトリ
-HEALTHCHECK_FILE = os.getenv('HEALTHCHECK_FILE', 'healthcheck.txt')
+HEALTHCHECK_FILE = os.getenv('HEALTHCHECK_FILE', '/tmp/healthcheck.txt')
 
 # DB保存ディレクトリが存在しない場合は作成
 if DB_DIRECTORY != '.':
