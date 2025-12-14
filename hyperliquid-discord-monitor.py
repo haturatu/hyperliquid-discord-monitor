@@ -22,7 +22,7 @@ load_dotenv()
 NOTIFICATION_SUPPRESSION_SECONDS = int(os.getenv('NOTIFICATION_SUPPRESSION_SECONDS', 60))
 WEBSOCKET_ACTIVITY_TIMEOUT = int(os.getenv('WEBSOCKET_ACTIVITY_TIMEOUT', 900)) # 15分
 DB_DIRECTORY = os.getenv('DB_DIRECTORY', '.') # デフォルトはカレントディレクトリ
-HEALTHCHECK_FILE = os.getenv('HEALTHCHECK_FILE', 'healthcheck.txt')
+HEALTHCHECK_FILE = os.getenv('HEALTHCHECK_FILE', '/tmp/healthcheck.txt')
 
 # DB保存ディレクトリが存在しない場合は作成
 if DB_DIRECTORY != '.':
