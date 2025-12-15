@@ -23,74 +23,74 @@ touch .env
 DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/your/webhook/url
 ```
 
-5. Create an `addresses` file containing wallet addresses to monitor (one per line):
+5. Create an `addresses.txt` file containing wallet addresses to monitor (one per line):
 ```bash
-touch addresses
+touch addresses.txt
 ```
 
-## Dockerでの実行 (推奨)
+## Running with Docker (Recommended)
 
-Dockerを使用すると、依存関係やプロセスの管理が自動化されるため、この方法を推奨します。
+Using Docker is recommended as it automates dependency and process management.
 
-### 1. 前提条件
+### 1. Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/)
 - [Docker Compose](https://docs.docker.com/compose/install/)
 
-### 2. 設定
+### 2. Configuration
 
-プロジェクトのルートディレクトリで、以下の3つの準備が必要です。
+In the project's root directory, you need to prepare the following three items.
 
-#### a) `addresses.txt` ファイル
+#### a) `addresses.txt` File
 
-監視対象のHyperliquidアドレスを1行に1つずつ記述します。
+Write the Hyperliquid addresses to monitor, one per line.
 
-**`addresses.txt`の例:**
+**Example of `addresses.txt`:**
 ```
 0x1234567890abcdef1234567890abcdef12345678
 0xabcdef1234567890abcdef1234567890abcdef12
 ```
 
-#### b) `data` ディレクトリ
+#### b) `data` Directory
 
-取引履歴のデータベース (SQLiteファイル) を永続的に保存するために使用します。コンテナを再起動してもデータが失われるのを防ぎます。
+This is used to permanently store the trade history database (SQLite file). It prevents data loss even if the container is restarted.
 
-以下のコマンドで作成してください:
+Create it with the following command:
 ```bash
 mkdir data
 ```
 
-#### c) `.env` ファイル
+#### c) `.env` File
 
-アプリケーションに必要な環境変数を記述します。
+Define the environment variables required for the application.
 
-- `DISCORD_WEBHOOK_URL`: **(必須)** あなたのDiscord Webhook URL。
-- `DB_DIRECTORY`: **(Dockerで必須)** データベースを永続ボリュームに保存するため、`/app/data`に設定してください。
-- `NOTIFICATION_SUPPRESSION_SECONDS`: (任意) 同じ種類の取引に対する通知間のクールダウン時間（秒）。デフォルトは`60`です。
+- `DISCORD_WEBHOOK_URL`: **(Required)** Your Discord Webhook URL.
+- `DB_DIRECTORY`: **(Required for Docker)** Set this to `/app/data` to save the database in a persistent volume.
+- `NOTIFICATION_SUPPRESSION_SECONDS`: (Optional) Cooldown time in seconds between notifications for the same type of trade. Default is `60`.
 
-**`.env`の例:**
+**Example of `.env`:**
 ```
 DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/your_webhook_id/your_webhook_token
 NOTIFICATION_SUPPRESSION_SECONDS=300
 DB_DIRECTORY=/app/data
 ```
 
-### 3. サービスの実行
+### 3. Running the Service
 
-設定が完了したら、以下のコマンドでサービスを管理します。
+Once the configuration is complete, manage the service with the following commands.
 
-- **バックグラウンドでサービスを開始:**
+- **Start the service in the background:**
   ```bash
   docker-compose up -d
   ```
 
-- **リアルタイムでログを表示:**
+- **View logs in real-time:**
   ```bash
   docker-compose logs -f
   ```
-  *(`Ctrl+C`でログ表示を終了しても、サービスは実行され続けます。)*
+  *(Pressing `Ctrl+C` will exit the log view, but the service will continue to run.)*
 
-- **サービスを停止:**
+- **Stop the service:**
   ```bash
   docker-compose down
   ```
@@ -100,9 +100,9 @@ DB_DIRECTORY=/app/data
 ## Usage
 
 ### Basic Usage
-Monitor addresses from the default `addresses` file:
+Monitor addresses from the default `addresses.txt` file:
 ```bash
-python hyperliquid-discord-monitor.py addresses
+python hyperliquid-discord-monitor.py addresses.txt
 ```
 
 Monitor addresses from a custom file:
@@ -113,7 +113,7 @@ python hyperliquid-discord-monitor.py custom_addresses.txt
 ### Daemon Mode
 Run the monitor as a background daemon:
 ```bash
-python hyperliquid-discord-monitor.py addresses -d
+python hyperliquid-discord-monitor.py addresses.txt -d
 ```
 
 Or with a custom addresses file:
@@ -132,17 +132,14 @@ echo "DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/123456789/abcdefg" > 
 
 2. Add wallet addresses to monitor:
 ```bash
-cat > addresses << EOF
+cat > addresses.txt << EOF
 0x1234567890abcdef1234567890abcdef12345678
 0xabcdef1234567890abcdef1234567890abcdef12
 0x9876543210fedcba9876543210fedcba98765432
 EOF
 ```
 
-3. Start monitoring:
-```bash
-python hyperliquid-discord-monitor.py addresses
-```
+python hyperliquid-discord-monitor.py addresses.txt
 
 ### Discord Message Example
 When a trade is detected, you'll receive Discord messages like:
@@ -163,7 +160,7 @@ Hash: 0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab
 project/
 ├── hyperliquid-discord-monitor.py
 ├── .env
-├── addresses
+├── addresses.txt
 ├── trades.db (created automatically)
 └── README.md
 ```
@@ -172,7 +169,7 @@ project/
 - `DISCORD_WEBHOOK_URL`: Your Discord webhook URL (required)
 
 ### Address File Format
-The addresses file should contain one Ethereum address per line:
+The `addresses.txt` file should contain one Ethereum address per line:
 ```
 0x1234567890abcdef1234567890abcdef12345678
 0xabcdef1234567890abcdef1234567890abcdef12
