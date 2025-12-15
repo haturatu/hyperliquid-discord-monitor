@@ -13,6 +13,12 @@ services:
     healthcheck:
       # The health check file is updated only if a trade has been updated within one day
       test: ["CMD-SHELL", "find /tmp/healthcheck.txt -mtime -5 | grep . || exit 1"]
-      interval: 10h
+      interval: 10m
       timeout: 10s
       retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+

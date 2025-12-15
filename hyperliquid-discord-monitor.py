@@ -7,6 +7,7 @@ import argparse
 import subprocess
 import asyncio
 import threading
+from websocket._exceptions import WebSocketConnectionClosedException
 from hyperliquid_monitor.monitor import HyperliquidMonitor
 from hyperliquid_monitor.types import Trade
 from datetime import datetime
@@ -19,8 +20,9 @@ load_dotenv()
 
 # .envから各種設定を読み込む
 NOTIFICATION_SUPPRESSION_SECONDS = int(os.getenv('NOTIFICATION_SUPPRESSION_SECONDS', 60))
+WEBSOCKET_ACTIVITY_TIMEOUT = int(os.getenv('WEBSOCKET_ACTIVITY_TIMEOUT', 900)) # 15分
 DB_DIRECTORY = os.getenv('DB_DIRECTORY', '.') # デフォルトはカレントディレクトリ
-HEALTHCHECK_FILE = os.getenv('HEALTHCHECK_FILE', 'healthcheck.txt')
+HEALTHCHECK_FILE = os.getenv('HEALTHCHECK_FILE', '/tmp/healthcheck.txt')
 
 # DB保存ディレクトリが存在しない場合は作成
 if DB_DIRECTORY != '.':
@@ -226,18 +228,32 @@ async def monitor_address_async(webhook_url: str, address: str, address_index: i
     """非同期で単一アドレスを監視し、切断時に自動再接続する"""
     global startup_grace_period, monitor_instances
     
-    # DBパスを環境変数で指定されたディレクトリ内に作成
     db_path = os.path.join(DB_DIRECTORY, f"trades_{address[-8:]}.db")
-    
+
+    # Create a shared state object for communication between threads
+    shared_state = {
+        'last_trade_time': time.time(),
+        'connection_dead': threading.Event()
+    }
+
     def create_callback(addr, db_file):
         def callback(trade):
-            # process_trade_with_db はヘルスチェックを内部で呼び出す
+            # Update the timestamp on each new trade
+            shared_state['last_trade_time'] = time.time()
             return process_trade_with_db(webhook_url, trade, db_file)
         return callback
 
-    while True:  # 自動再接続のための無限ループ
+    # Create the callback once
+    monitor_callback = create_callback(address, db_path)
+
+    while True:  # The main reconnection loop
         monitor = None
         monitor_thread = None
+        
+        # Reset state for the new connection attempt
+        shared_state['connection_dead'].clear()
+        shared_state['last_trade_time'] = time.time()
+
         try:
             print(f"[{address_index}] Initializing monitor for address: {address}")
             
@@ -246,40 +262,46 @@ async def monitor_address_async(webhook_url: str, address: str, address_index: i
             monitor = HyperliquidMonitor(
                 addresses=[address],
                 db_path=db_path,
-                callback=create_callback(address, db_path)
+                callback=monitor_callback
             )
             monitor_instances[address] = monitor
 
             # --- Monkey-patching the send_ping method ---
             try:
                 def patched_send_ping(ws_manager_instance):
-                    """Patched send_ping that exits when the websocket is closed."""
+                    """Patched send_ping that signals when the websocket is closed."""
                     print(f"[{address_index}] Starting patched ping thread for {address}.")
-                    while not ws_manager_instance.ws.closed:
+                    while not ws_manager_instance.ws.closed and not shared_state['connection_dead'].is_set():
                         try:
                             ws_manager_instance.ws.send(json.dumps({"method": "ping"}))
                             time.sleep(5)
+                        except WebSocketConnectionClosedException:
+                            print(f"[{address_index}] Ping thread: WebSocket connection closed. Signaling for reconnect.")
+                            shared_state['connection_dead'].set()
+                            if monitor:
+                                monitor.stop()
+                            break
                         except Exception as e:
-                            print(f"[{address_index}] Error in patched ping thread for {address}: {e}. Exiting.")
+                            print(f"[{address_index}] Error in patched ping thread for {address}: {e}. Signaling for reconnect.")
+                            shared_state['connection_dead'].set()
+                            if monitor:
+                                monitor.stop()
                             break
                     print(f"[{address_index}] Patched ping thread for {address} terminated.")
 
-                # The websocket manager is at monitor.info.ws_manager
                 if hasattr(monitor, 'info') and hasattr(monitor.info, 'ws_manager') and hasattr(monitor.info.ws_manager, 'send_ping'):
                     ws_manager = monitor.info.ws_manager
-                    # Bind the patched function to the instance
                     ws_manager.send_ping = patched_send_ping.__get__(ws_manager)
                     print(f"[{address_index}] Successfully patched 'send_ping' method.")
                 else:
                     sys.stderr.write(f"[{address_index}] WARNING: Could not find 'monitor.info.ws_manager.send_ping' method to patch.\n")
             except Exception as e:
                 sys.stderr.write(f"[{address_index}] WARNING: An error occurred while applying the ping thread patch: {e}\n")
-            # --- End of patch ---
             
             error_container = {'error': None}
             
             def start_monitor_thread():
-                """monitor.start()をブロッキング呼び出しで実行するスレッド"""
+                """A thread to run the blocking monitor.start() call."""
                 try:
                     print(f"[{address_index}] Starting monitor.start() for {address} in a new thread.")
                     monitor.start()
@@ -292,40 +314,46 @@ async def monitor_address_async(webhook_url: str, address: str, address_index: i
             monitor_thread = threading.Thread(target=start_monitor_thread, daemon=True)
             monitor_thread.start()
             
-            # 監視スレッドが正常に起動したか少し待ってから確認
             await asyncio.sleep(2)
             if error_container['error']:
-                raise error_container['error'] # 開始早々のエラー
+                raise error_container['error']
 
             print(f"[{address_index}] Monitor for {address} started successfully. Grace period active for 60s.")
             
-            # スレッドが生きている限り監視を続ける
+            # Main loop to check thread health and connection status
             while monitor_thread.is_alive():
-                await asyncio.sleep(10) # 10秒ごとに生存確認
+                # Check 1: Signal from the ping thread
+                if shared_state['connection_dead'].is_set():
+                    print(f"[{address_index}] Main loop detected dead connection signal. Breaking to reconnect.")
+                    break
+                
+                # Check 2: Inactivity timeout
+                if (time.time() - shared_state['last_trade_time']) > WEBSOCKET_ACTIVITY_TIMEOUT:
+                    print(f"[{address_index}] No trade activity for over {WEBSOCKET_ACTIVITY_TIMEOUT} seconds. Forcing reconnect.")
+                    shared_state['connection_dead'].set() # Signal other threads
+                    if monitor:
+                        monitor.stop()
+                    break
+
+                await asyncio.sleep(10)
             
-            # ループを抜けた = スレッドが終了した
             if error_container['error']:
-                # スレッド内でエラーが補足された場合
                 print(f"[{address_index}] Monitor thread for {address} stopped due to an error: {error_container['error']}. Reconnecting...")
             else:
-                # 予期せず終了した場合 (WebSocket切断など)
-                print(f"[{address_index}] Monitor thread for {address} stopped unexpectedly. Reconnecting...")
+                print(f"[{address_index}] Monitor thread for {address} stopped. Reconnecting...")
 
         except Exception as e:
             sys.stderr.write(f"[{address_index}] An exception occurred in the monitor loop for {address}: {e}\n")
         
         finally:
-            # クリーンアップ処理
             if address in monitor_instances:
                 try:
-                    # monitor.stop()を呼び出して、関連リソース (例: pingスレッド) の解放を試みる
                     print(f"[{address_index}] Cleaning up monitor instance for {address}.")
                     monitor_instances[address].stop()
                 except Exception as e:
                     sys.stderr.write(f"[{address_index}] Error stopping monitor during cleanup: {e}\n")
                 del monitor_instances[address]
             
-            # 再接続前の待機
             wait_time = 30
             print(f"[{address_index}] Waiting {wait_time} seconds before reconnecting {address}...")
             await asyncio.sleep(wait_time)
