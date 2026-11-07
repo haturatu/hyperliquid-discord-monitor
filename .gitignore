@@ -1,5 +1,11 @@
 addresses
-.env
-trades*.db
-data
 addresses.txt
+.env
+.env.*
+!.env.example
+trades*.db
+trades*.db-*
+data/
+__pycache__/
+.pytest_cache/
+.venv/
