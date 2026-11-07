@@ -108,3 +108,17 @@ python -m pytest -q
 ```
 
 Pull requests build the Docker image and run the application tests. No GCE deployment configuration is included.
+
+## Published Docker image
+
+To run the prebuilt image from GitHub Container Registry, replace `build: .`
+in `docker-compose.yml` with:
+
+```yaml
+image: ghcr.io/haturatu/hyperliquid-discord-monitor:latest
+```
+
+Keep the same `env_file`, `environment`, and read-only `addresses.txt` mount.
+Set `DISCORD_WEBHOOK_URL` in your local `.env` file; Compose checks that
+it is not empty. Webhook credentials and wallet lists are loaded at runtime,
+not included in the published image. Published releases also use the `v*` tag.

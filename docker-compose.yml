@@ -7,6 +7,7 @@ services:
     environment:
       TZ: Asia/Tokyo
       DB_DIRECTORY: ./data
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:?Set DISCORD_WEBHOOK_URL in .env}
     volumes:
       - monitor-data:/app/data
       - ./addresses.txt:/app/addresses.txt:ro
