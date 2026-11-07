@@ -1,27 +1,38 @@
 services:
   hyperliquid-monitor:
     build: .
-    restart: always
-    user: "65534:65534"
+    restart: unless-stopped
     env_file:
-      - path: ./.env
-        required: true
+      - ./.env
     environment:
+      TZ: Asia/Tokyo
+      DB_DIRECTORY: ./data
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:?Set DISCORD_WEBHOOK_URL in .env}
     volumes:
-      # - ./data:/app/data # If you want to persist data outside the container
-      - ./addresses.txt:/app/addresses.txt:ro # If you want to manage addresses.txt outside the container
+      - monitor-data:/app/data
+      - ./addresses.txt:/app/addresses.txt:ro
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
     mem_limit: 512m
     cpus: 0.5
     healthcheck:
-      # The health check file is updated only if a trade has been updated within one day
-      test: ["CMD-SHELL", "find /tmp/healthcheck.txt -mtime -5 | grep . || exit 1"]
-      interval: 10m
-      timeout: 10s
-      retries: 5
+      # Updated by monitor loop even if no fills arrive.
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os,time; from pathlib import Path; p=Path(os.getenv('HEALTHCHECK_FILE', '/tmp/healthcheck.txt')); assert p.is_file() and 0 <= time.time()-p.stat().st_mtime < 120"
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
     logging:
       driver: json-file
       options:
         max-size: "5m"
         max-file: "2"
 
+volumes:
+  monitor-data:

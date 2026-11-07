@@ -1,4 +1,4 @@
-# The image must build without local credentials or account-specific data.
+# Keep repository metadata, credentials and runtime state out of image builds.
 .git
 .github
 .env
@@ -6,6 +6,7 @@
 **/.env
 **/.env.*
 addresses.txt
+**/addresses.txt
 data
 **/data
 trades*.db
@@ -24,3 +25,5 @@ trades*.db
 __pycache__
 **/__pycache__
 *.pyc
+.pytest_cache/
+.venv/

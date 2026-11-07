@@ -1,0 +1,22 @@
+name: retention-tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  retention:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.14']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install pytest -r requirements.txt
+      - run: python -m pytest -q

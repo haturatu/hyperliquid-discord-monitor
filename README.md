@@ -1,212 +1,124 @@
 # hyperliquid-discord-monitor
+
+Monitor Hyperliquid user fills over WebSocket and post position activity to Discord. This repository incorporates application improvements from [deg-labs/hdm](https://github.com/deg-labs/hdm), without its GCE-specific deployment setup.
+
+## Features
+
+- Monitor multiple wallets over one WebSocket connection with automatic reconnection.
+- Give each wallet an optional label and additional Discord webhook.
+- Deduplicate fills using SQLite; seed historical fills on first startup without re-posting.
+- Initial Discord POST, PATCH of ongoing fills and a final completion POST after inactivity.
+- Persist unfinished notification sessions and retry incomplete completion PATCHes across restarts.
+- Preserve the original message link when possible, the size-weighted average fill price, and Long (green)/Short (blue) card colors.
+- Discord retry handling, rate-limit awareness, message retention, safe deletion and recovery journals.
+- Hyperliquid Ghost links, health heartbeat independent of fills, structured logging and test preview.
+
 ## Install
 
-### Prerequisites
-- Python 3.7+
-- pip package manager
+Python 3.10+ is required for local execution; Docker uses Python 3.15.
 
-### Installation Steps
-
-1. Clone or download the project files
-2. Install required dependencies:
-```bash
-pip install -r requirements.txt
+```sh
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements.txt
+cp .env.example .env
 ```
 
-3. Create a `.env` file in the project directory:
-```bash
-touch .env
-```
+Set `DISCORD_WEBHOOK_URL` in `.env`, then create `addresses.txt` containing one entry per line:
 
-4. Add your Discord webhook URL to the `.env` file:
-```
-DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/your/webhook/url
-```
-
-5. Create an `addresses.txt` file containing wallet addresses to monitor (one per line):
-```bash
-touch addresses.txt
-```
-
-## Running with Docker (Recommended)
-
-Using Docker is recommended as it automates dependency and process management.
-
-### 1. Prerequisites
-
-- [Docker](https://docs.docker.com/get-docker/)
-- [Docker Compose](https://docs.docker.com/compose/install/)
-
-### 2. Configuration
-
-In the project's root directory, you need to prepare the following three items.
-
-#### a) `addresses.txt` File
-
-Write the Hyperliquid addresses to monitor, one per line.
-
-**Example of `addresses.txt`:**
-```
+```text
 0x1234567890abcdef1234567890abcdef12345678
-0xabcdef1234567890abcdef1234567890abcdef12
+0xabcdef1234567890abcdef1234567890abcdef12,my-label
+0x9999999999999999999999999999999999999999,team-alpha,https://discord.com/api/webhooks/id/token
 ```
 
-#### b) `data` Directory
+The format is `wallet[,tag[,additional_webhook_url]]`. The per-wallet webhook receives **additional** notifications; the default webhook still receives them. Keep `.env` and `addresses.txt` private.
 
-This is used to permanently store the trade history database (SQLite file). It prevents data loss even if the container is restarted.
+## Run and preview
 
-Create it with the following command:
-```bash
-mkdir data
-```
+The original entrypoint filename is preserved; `hdm.py` is also available:
 
-#### c) `.env` File
-
-Define the environment variables required for the application.
-
-- `DISCORD_WEBHOOK_URL`: **(Required)** Your Discord Webhook URL.
-- `DB_DIRECTORY`: **(Required for Docker)** Set this to `/app/data` to save the database in a persistent volume.
-- `NOTIFICATION_SUPPRESSION_SECONDS`: (Optional) Cooldown time in seconds between notifications for the same type of trade. Default is `60`.
-
-**Example of `.env`:**
-```
-DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/your_webhook_id/your_webhook_token
-NOTIFICATION_SUPPRESSION_SECONDS=300
-DB_DIRECTORY=/app/data
-```
-
-### 3. Running the Service
-
-Once the configuration is complete, manage the service with the following commands.
-
-- **Start the service in the background:**
-  ```bash
-  docker-compose up -d
-  ```
-
-- **View logs in real-time:**
-  ```bash
-  docker-compose logs -f
-  ```
-  *(Pressing `Ctrl+C` will exit the log view, but the service will continue to run.)*
-
-- **Stop the service:**
-  ```bash
-  docker-compose down
-  ```
-
----
-
-## Usage
-
-### Basic Usage
-Monitor addresses from the default `addresses.txt` file:
-```bash
+```sh
+python hyperliquid-discord-monitor.py monitor addresses.txt
 python hyperliquid-discord-monitor.py addresses.txt
+python hyperliquid-discord-monitor.py monitor addresses.txt --daemon
+python hyperliquid-discord-monitor.py monitor addresses.txt --webhook-url "https://discord.com/api/webhooks/id/token"
 ```
 
-Monitor addresses from a custom file:
-```bash
-python hyperliquid-discord-monitor.py custom_addresses.txt
+The `monitor` command can be omitted for backward compatibility. In daemon mode, the PID file is `/tmp/hyperliquid_monitor_multi.pid` and log files are under `/tmp/hyperliquid_monitor_multi*.log`.
+
+Preview incoming fills without a full monitor and without sending Discord messages:
+
+```sh
+python hyperliquid-discord-monitor.py tests --addresses-file addresses.txt --timeout-seconds 60 --max-entries 10
 ```
 
-### Daemon Mode
-Run the monitor as a background daemon:
-```bash
-python hyperliquid-discord-monitor.py addresses.txt -d
+The preview `--post` option sends to Discord; use it deliberately.
+
+## Environment variables
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `DISCORD_WEBHOOK_URL` | Required for monitor | Default webhook |
+| `NOTIFICATION_SUPPRESSION_SECONDS` | `600` | Quiet seconds since the most recent fill before the final POST |
+| `USER_FILL_INACTIVITY_RECONNECT_SECONDS` | `900` | Reconnect after this many seconds without monitored user fills |
+| `WEBSOCKET_ACTIVITY_TIMEOUT` | `900` | Legacy fallback for the inactivity setting |
+| `DB_DIRECTORY` | `.` | SQLite database and recovery-journal directory |
+| `HEALTHCHECK_FILE` | `/tmp/healthcheck.txt` | Monitor-loop heartbeat |
+| `DISCORD_KEEP_MESSAGES` | `50` | Per-database retention count |
+| `DISCORD_CLEANUP_INTERVAL_HOURS` | `24` | Cleanup interval |
+| `DISCORD_MESSAGE_MAX_AGE_HOURS` | `0` | Optional age-based cleanup; 0 disables |
+| `DISCORD_DELETE_INTERVAL_SECONDS` | `0.5` | Gap between delete requests |
+| `TEST_PREVIEW_TIMEOUT_SECONDS` | `60` | Test-preview wait |
+| `TEST_PREVIEW_MAX_ENTRIES` | `10` | Test-preview limit |
+| `LOG_LEVEL` | `INFO` | DEBUG/INFO to stdout; WARNING+ to stderr |
+
+`USER_FILL_INACTIVITY_RECONNECT_SECONDS` takes precedence over the legacy timeout variable. Each log entry includes the container hostname and process ID.
+
+## Notification behavior and persistence
+
+For each wallet/market/webhook notification session, the first new fill creates a message. Further fills PATCH the same message, with high-frequency events merged into roughly two-second update sweeps. When no new fill occurs for `NOTIFICATION_SUPPRESSION_SECONDS`, a new position-change-completed message is posted, then the original message is PATCHed to its completed state. Even a single fill eventually produces a completion message. This is a **quiet-period setting**, not a rate limit for initial notifications.
+
+Session direction controls color throughout: Long is green, Short is blue. The completed original post displays the size-weighted average execution price across its fills (not necessarily the position entry price). The final post links to the original post if Discord provides the channel and message IDs. Older sessions attempt to recover the channel ID where possible.
+
+SQLite files `trades_<wallet suffix>.db` store deduplication IDs, session/message IDs, pending completion updates and Discord message retention state. Existing fills are seeded silently at first startup. Discord 429 responses are retried according to the server's retry delay, and transient failures are retried with delays; exactly-once delivery cannot be guaranteed if a Discord POST response is lost.
+
+**Persist the entire DB directory**, including WAL files and `*.discord-pending` recovery journals. A lost DB can cause duplicate notifications or lose unfinished sessions. Active messages are protected from retention cleanup. The optional age limit can remove messages even if the count limit has not been reached.
+
+## Docker Compose
+
+```sh
+cp .env.example .env
+# Set DISCORD_WEBHOOK_URL and create addresses.txt
+docker compose up -d --build
+docker compose logs -f
 ```
 
-Or with a custom addresses file:
-```bash
-python hyperliquid-discord-monitor.py custom_addresses.txt -d
+The Compose service remains `hyperliquid-monitor`. Its `addresses.txt` mount is read-only, `.env` is loaded **at runtime**, and the image never includes secrets or wallet lists. `/app/data` persists in a named `monitor-data` volume across container recreation. The image runs without root privileges (UID/GID 65534). The healthcheck considers the monitor unhealthy if the heartbeat has not updated for 120 seconds.
+
+If you already use a host `./data` directory, you may replace the named volume with `./data:/app/data`, but ensure UID 65534 can write to it and **preserve existing databases, WAL files and recovery journals**. Running `docker compose down -v` will delete the named volume; do not use it unless you intend to discard monitoring state.
+
+Stop with `docker compose down`.
+
+## Tests
+
+```sh
+python -m pip install pytest -r requirements.txt
+python -m pytest -q
 ```
 
-## Example
+Pull requests build the Docker image and run the application tests. No GCE deployment configuration is included.
 
-### Setup Example
+## Published Docker image
 
-1. Create your environment file:
-```bash
-echo "DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/123456789/abcdefg" > .env
+To run the prebuilt image from GitHub Container Registry, replace `build: .`
+in `docker-compose.yml` with:
+
+```yaml
+image: ghcr.io/haturatu/hyperliquid-discord-monitor:latest
 ```
 
-2. Add wallet addresses to monitor:
-```bash
-cat > addresses.txt << EOF
-0x1234567890abcdef1234567890abcdef12345678
-0xabcdef1234567890abcdef1234567890abcdef12
-0x9876543210fedcba9876543210fedcba98765432
-EOF
-```
-
-python hyperliquid-discord-monitor.py addresses.txt
-
-### Discord Message Example
-When a trade is detected, you'll receive Discord messages like:
-```
-**[2024-01-15 14:30:25] New FILL**
-Address: https://hypurrscan.io/address/0x1234567890abcdef1234567890abcdef12345678
-Trade Tx hash: https://hypurrscan.io/tx/0xabcdef...
-
-Coin: ETH
-Price: 2450.50
-Direction: Long
-PnL: 🟢 125.75
-Hash: 0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab
-```
-
-### File Structure
-```
-project/
-├── hyperliquid-discord-monitor.py
-├── .env
-├── addresses.txt
-├── trades.db (created automatically)
-└── README.md
-```
-
-### Environment Variables
-- `DISCORD_WEBHOOK_URL`: Your Discord webhook URL (required)
-
-### Address File Format
-The `addresses.txt` file should contain one Ethereum address per line:
-```
-0x1234567890abcdef1234567890abcdef12345678
-0xabcdef1234567890abcdef1234567890abcdef12
-0x9876543210fedcba9876543210fedcba98765432
-```
-
-Empty lines are ignored, so you can add spacing for better readability.
-
-### Recommendation for Daemonization
-If you daemonize the process directly, it may go into a sleep state.
-Therefore, we recommend using Supervisord for proper process daemonization.
-
-example conf:
-```bash
-$ cat /etc/supervisor/conf.d/hyperliquid-discord-monitor.conf
-[program:hyperliquid-discord-monitor]
-command=python3 hyperliquid-discord-monitor.py addresses
-user=darkstar
-directory=/home/$USER/git/hyperliquid-discord-monitor
-autostart=true
-autorestart=true
-stderr_logfile=/var/log/h-monitor.log
-stderr_logfile_maxbytes=1MB
-stdout_logfile=/var/log/h-monitor.out.log
-stdout_logfile_maxbytes=1MB
-stdout_logfile_backups=0
-stderr_logfile_backups=0
-environment=PATH="/home/$USER/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/home/$USER/.$USER/bin:/home/$USER/.cargo/bin:/home/$USER/.npm-global/bin",PYTHONPATH="/home/$USER/.local/lib/python3.11/site-packages",HOME="/home/$USER"
-```
-```bash
-sudo supervisorctl reread
-sudo supervisorctl update
-sudo supervisorctl start hyperliquid-discord-monitor
-```
-
-### Docker image
-
-Use `ghcr.io/haturatu/hyperliquid-discord-monitor:latest` by replacing `build: .` with the corresponding `image:` entry in `docker-compose.yml`.
-
-Create a local `.env` containing `DISCORD_WEBHOOK_URL` and an `addresses.txt` file. Docker Compose passes the webhook as a runtime environment variable and mounts the address list read-only. Neither file is included in the image.
+Keep the same `env_file`, `environment`, and read-only `addresses.txt` mount.
+Set `DISCORD_WEBHOOK_URL` in your local `.env` file; Compose checks that
+it is not empty. Webhook credentials and wallet lists are loaded at runtime,
+not included in the published image. Published releases also use the `v*` tag.
