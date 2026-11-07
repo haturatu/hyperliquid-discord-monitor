@@ -15,7 +15,5 @@ RUN chown -R nobody:nobody /app
 USER nobody
 
 COPY hyperliquid-discord-monitor.py .
-COPY addresses.txt .
-COPY .env .
 
 CMD ["python", "hyperliquid-discord-monitor.py", "addresses.txt"]

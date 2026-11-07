@@ -204,3 +204,11 @@ sudo supervisorctl reread
 sudo supervisorctl update
 sudo supervisorctl start hyperliquid-discord-monitor
 ```
+
+### Public GHCR image and runtime secrets
+
+The Dockerfile does not copy `.env` or `addresses.txt`: both are **runtime-only**. GitHub Actions builds `ghcr.io/haturatu/hyperliquid-discord-monitor` on main / `v*` pushes using `GITHUB_TOKEN` with `packages: write`. After the first release, set the GHCR package visibility to **Public**.
+
+Create local `.env` with a unique `DISCORD_WEBHOOK_URL` and local `addresses.txt` as described above. Compose uses `env_file` to inject runtime variables, explicitly validates the required webhook at configuration time and mounts the wallet list read-only. To deploy the published image, replace the Compose `build: .` directive with `image: ghcr.io/haturatu/hyperliquid-discord-monitor:latest`. Never add local webhooks, wallet lists or databases to the image build context.
+
+The Dockerfile previously copied `.env` into the image. If you have built or shared a previous image that included a real Discord webhook URL, **rotate the webhook**; deleting the old image tag does not make leaked credentials safe again.

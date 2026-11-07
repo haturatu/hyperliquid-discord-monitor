@@ -4,10 +4,13 @@ services:
     restart: always
     user: "65534:65534"
     env_file:
-      - ./.env
+      - path: ./.env
+        required: true
+    environment:
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:?Set DISCORD_WEBHOOK_URL in .env}
     volumes:
       # - ./data:/app/data # If you want to persist data outside the container
-      - ./addresses.txt:/app/addresses.txt # If you want to manage addresses.txt outside the container
+      - ./addresses.txt:/app/addresses.txt:ro # If you want to manage addresses.txt outside the container
     mem_limit: 512m
     cpus: 0.5
     healthcheck:

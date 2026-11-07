@@ -3,3 +3,4 @@ addresses
 trades*.db
 data
 addresses.txt
+.env.*
